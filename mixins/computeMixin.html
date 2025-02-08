@@ -1,0 +1,24 @@
+<script>
+  const computeMixin = {
+    methods: {
+      calculate(editedItem, fld) {
+        if (fld.key === "Rate" || fld.key === "Quantity") {
+          editedItem["Amount"] = editedItem["Quantity"] * editedItem["Rate"];
+        }
+      },
+      handleSelectChange(editedItem, fld) {
+        console.log(editedItem, fld);
+        if (this.appName == "Sales") {
+          console.log("key", fld.key);
+          const selectedItem = fld.options.find(
+            (option) => option[fld.optionSource.key] === editedItem["Product"]
+          );
+          editedItem["Rate"] = selectedItem ? selectedItem["Rate"] : 0;
+          editedItem["Image"] = selectedItem ? selectedItem["Item Image"] : "";
+          // Do the calculation again if required
+          this.calculate(editedItem, fld);
+        }
+      },
+    },
+  };
+</script>

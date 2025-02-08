@@ -1,0 +1,83 @@
+<script>
+    const approvalMixin = {
+        data() {
+            return {
+                disabledFieldsForStandardUsers: ["🚦 Status", "Approver's Comments"],
+                disabledFieldsForAdminUsers: ["👤 Requestee", "📅 From", "📅 To", "Comments",],
+                requesteeKey: "👤 Requestee",
+                approverKey: "Approver",
+            }
+        },
+        methods: {
+            filterDataOnRoleBasis: function () {
+
+                console.log("schema:", this.schema);
+                if (!this.currentUser || !this.schema) {
+                    console.log("No user or schema found. Returning without filtering data");
+                    return;
+                }
+                console.log("Filtering data on role basis", this.currentUser);
+                let { role, email, name } = this.currentUser;
+                if (role === 'standard' || role === 'admin') {
+                    this.dataTable = this.dataTable.filter(item => item[this.requesteeKey] === email || item[this.approverKey] === email)
+                }
+                if (role === 'standard') {
+                    this.schema.forEach((item) => {
+                        // Requestee sould be able to see only his/her email
+                        if (item.key === this.requesteeKey && item.options.length) {
+                            item.options = item.options.filter(o => o.Email === this.currentUser.email)
+                        }
+                        // Requestee should be able to pick only users having role as admin
+                        if (item.key === this.approverKey && item.options.length) {
+                            item.options = item.options.filter(o => o.Role === 'admin')
+                        }
+
+                        // Disable all fields except the ones in enabledFieldsForStandardUsers
+
+                        if (this.disabledFieldsForStandardUsers.includes(item.key)) {
+                            item.disabled = true;
+                        } else {
+                            item.disabled = false;
+                        }
+                    });
+                }
+                if (role === 'admin') {
+                    this.schema.forEach((item) => {
+                        if (item.key === this.approverKey && item.options.length) {
+                            item.options = item.options.filter(o => o.Email === this.currentUser.email)
+                        }
+                        if (this.disabledFieldsForAdminUsers.includes(item.key)) {
+                            item.disabled = true;
+                        } else {
+                            item.disabled = false;
+                        }
+                    });
+
+                }
+            },
+            showAddNewBtn: function () {
+                let { role } = this.currentUser;
+                // Only requestee and owner can add new requests
+                if (role === 'standard') {
+                    return true;
+                }
+                return false;
+            },
+            showEditBtn: function (item) {
+                let { role, email } = this.currentUser;
+                // Only admin and owner can edit requests once they are approved or rejected
+                if ((item['🚦 Status'] === 'Approved' || item['🚦 Status'] === 'Rejected') && role === 'standard') {
+                    return false;
+                }
+                return true;
+            },
+            showDeleteBtn: function (item) {
+                let { role, email } = this.currentUser;
+                if (item['🚦 Status'] === 'Approved' || item['🚦 Status'] === 'Rejected') {
+                    return false;
+                }
+                return true;
+            },
+        }
+    }
+</script>

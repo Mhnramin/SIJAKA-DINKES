@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.0.5"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/vuetify/3.4.8/vuetify-labs.min.js"
+      integrity="sha512-5xeIAXqNP/DWGkolQzdPAL042aA4Lb8SCMy/Ju+9yzvf9SzfsbzICQwYyMrhbN8pG8m0LWhMl9BISpIDs8RquQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/vuetify/3.4.8/vuetify-labs.min.css"
+      integrity="sha512-VP/8WyNQxaDeiVsCGXh7nLWVPt64+rqoCugT7xhZLhx9F8fTJpjpiCqHqJlhmKAMgyRU8TiAAxJmmxz260R03w=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <?!= include('mixins/computeMixin'); ?>
+    <?!= include('mixins/authMixin'); ?>
+    <?!= include('mixins/approvalMixin'); ?>
+    <?!= include('script'); ?>
+    <script type="text/x-template" id="app-template">
+      <?!= include('html/app'); ?>
+    </script>
+  </body>
+</html>

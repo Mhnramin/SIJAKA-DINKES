@@ -1,0 +1,29 @@
+<template v-if="currentSession === 'userInfo'">
+  <v-card width="600" class="mx-auto my-2 px-4 py-4">
+    <h4 class="mx-4"><b>{{currentUser.name}}</b></h4>
+    <v-text-field
+      v-model="currentUser.email"
+      label="Email"
+      disabled
+    ></v-text-field>
+    <v-text-field
+      v-model="currentUser.role"
+      label="Role"
+      disabled
+    ></v-text-field>
+    <v-form :loading="submitting">
+      <v-text-field
+        v-model="currentUser.name"
+        label="Name"
+        required
+      ></v-text-field>
+
+      <v-btn @click="changeUserProfile">Save</v-btn>
+      <v-btn
+        @click="goToSession('changePasswordSession')"
+        :disabled="submitting"
+        >Change Password</v-btn
+      >
+    </v-form>
+  </v-card>
+</template>

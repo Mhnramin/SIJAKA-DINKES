@@ -1,0 +1,472 @@
+<script type="module">
+  const { createApp } = Vue;
+  const { createVuetify } = Vuetify;
+
+  const vuetify = createVuetify();
+
+  createApp({
+    template: "#app-template",
+    mixins: [authMixin, computeMixin, approvalMixin],
+    data: () => ({
+      appIndex: 1,
+      apps: [],
+      appName: "",
+      pageToken: null,
+      pageSize: 20,
+      showRefresh: false,
+      saving: false,
+      appIsLoading: false,
+      dialog: false,
+      dialogDelete: false,
+      uploading: false,
+      viewDialog: false,
+      schema: null,
+      prefs: null,
+      selectedEmployee: null,
+      search: "",
+      searchLocal: "",
+      searchField: null,
+      headers: [],
+      rules: {
+        required: (value) => !!value || "Required.",
+        integer: (value) => /^[0-9]+$/.test(value) || "Invalid integer value",
+        decimalUpto2: (value) => {
+          console.log("Decimal Validation", value);
+          return (
+            /^[0-9]+(\.[0-9]{1,2})?$/.test(value) || "Invalid decimal value"
+          );
+        },
+        year: (value) => /^[0-9]{4}$/.test(value) || "Invalid year",
+      },
+      dataTable: [],
+      editedIndex: -1,
+      editedItem: {},
+      defaultItem: {},
+      snackbar: {
+        text: "",
+        show: false,
+        timeout: 2000,
+        color: "success",
+        multiline: true,
+        vertical: true,
+        right: true,
+        bottom: true,
+      },
+      isOpen: false,
+      options: ["Dashboard Admin", "Edit Template", "Recreate Tahunan"],
+      confirmDialog: false,
+      templateUrl:
+        "https://docs.google.com/document/d/17YyaXTovXjnUv4QoPSgi4WfhYmO484qMHowTqs_Cw0Y/edit",
+      templateTawkto: "https://dashboard.tawk.to/",
+    }),
+
+    computed: {
+      formTitle() {
+        return this.editedIndex === -1 ? "Tambah Baru" : "Edit Data";
+      },
+    },
+
+    watch: {
+      dialog(val) {
+        val || this.close();
+      },
+      dialogDelete(val) {
+        val || this.closeDelete();
+      },
+      viewDialog(val) {
+        val || this.close();
+      },
+      schema(val) {
+        this.doPostProcessing();
+      },
+    },
+
+    created() {
+      this.fetchSchema();
+      this.refresh();
+    },
+
+    methods: {
+      handleOptionSelect(option) {
+        if (option === "Recreate Tahunan") {
+          this.confirmDialog = true;
+        } else if (option === "Edit Template") {
+          this.editTemplate();
+        } else if (option === "Dashboard Admin") {
+          this.dashboardTawkto();
+        } else {
+          console.log("Selected:", option);
+        }
+      },
+      fetchSchema() {
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.schema = res.schema;
+            this.prefs = res.appSettings;
+            const schema = res.schema;
+            this.headers = schema.map((item) => {
+              return {
+                title: item.label,
+                key: item.key,
+                sortable: item.sortable || true,
+                align: item.align || "start",
+                width: item.width || null,
+                type: item.type,
+              };
+            });
+            // this.headers.push({
+            //   text: "Actions",
+            //   key: "actions",
+            //   sortable: false,
+            // });
+            const idHeader = { title: "ID", key: this.prefs.IdColumn };
+            this.headers = [
+              idHeader,
+              ...this.headers,
+              {
+                text: "Actions",
+                key: "actions",
+                sortable: false,
+                width: "5%",
+              },
+            ];
+
+            console.log("Headers", this.headers);
+
+            this.editedItem = schema.reduce((acc, item) => {
+              if (item.type === "tags") {
+                acc[item.key] = null;
+              } else {
+                acc[item.key] = item.defaultValue || "";
+              }
+
+              return acc;
+            }, {});
+            this.defaultItem = schema.reduce((acc, item) => {
+              acc[item.key] = item.defaultValue || "";
+              return acc;
+            }, {});
+
+            this.schema.forEach((item) => {
+              if (item.required) {
+                item.label = `${item.label} *`;
+              }
+              if (
+                item.type === "select_option_source" &&
+                typeof item.optionSource === "string"
+              ) {
+                item.optionSource = {
+                  source: item.optionSource.split("&")[0].split("=")[1],
+                  key: item.optionSource.split("&")[1].split("=")[1],
+                };
+              }
+            });
+            this.schema.forEach((item) => {
+              if (item.type === "select_option_source" && item.optionSource) {
+                google.script.run
+                  .withSuccessHandler((res) => {
+                    item.options = JSON.parse(res);
+                    this.filterDataOnRoleBasis();
+                  })
+                  .withFailureHandler((error) => {
+                    console.log(error);
+                  })
+                  .getSheetData(item.optionSource.source);
+              }
+            });
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+          })
+          .getAppPrefs();
+      },
+      refresh() {
+        this.appIsLoading = true;
+        google.script.run
+          .withSuccessHandler((res) => {
+            console.log("Schema", this.schema);
+            this.loadDataTable(res);
+            this.appIsLoading = false;
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+          })
+          .readAllRecords();
+      },
+      loadDataTable(res) {
+        let data = JSON.parse(res);
+        this.dataTable = data;
+
+        console.log("Parsed Data", data);
+        if (!this.schema) {
+          return;
+        }
+        const dateFlds = this.schema.filter((fld) => fld.type === "date");
+        data = data.map((item) => {
+          dateFlds.forEach((fld) => {
+            if (item[fld.key] != "") {
+              const dt = new Date(item[fld.key]);
+              item[fld.key] = `${dt.getFullYear()}-${(
+                "0" +
+                (dt.getMonth() + 1)
+              ).slice(-2)}-${("0" + dt.getDate()).slice(-2)}`;
+            }
+          });
+          return item;
+        });
+        this.dataTable = data;
+        this.filterDataOnRoleBasis();
+      },
+      doPostProcessing() {
+        const dateFlds = this.schema.filter((fld) => fld.type === "date");
+        if (!this.dataTable) {
+          return;
+        }
+        this.dataTable = this.dataTable.map((item) => {
+          dateFlds.forEach((fld) => {
+            if (item[fld.key] != "") {
+              const dt = new Date(item[fld.key]);
+              item[fld.key] = `${dt.getFullYear()}-${(
+                "0" +
+                (dt.getMonth() + 1)
+              ).slice(-2)}-${("0" + dt.getDate()).slice(-2)}`;
+            }
+          });
+          return item;
+        });
+      },
+
+      editItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.dialog = true;
+        // Handle fld of type tags
+        this.schema.forEach((fld) => {
+          if (fld.type === "tags") {
+            this.editedItem[fld.key] = this.editedItem[fld.key].split(",");
+          }
+        });
+        // let userIDs = this.editedItem['Edited By'];
+        // if (userIDs === '') {
+        //     userIDs = this.users[this.currentUser.email].email;
+        // } else {
+        //     userIDs = userIDs + ',' + this.users[this.currentUser.email].email;
+        // }
+        // userIDs = userIDs.split(',').filter((item, i, allItems) => i === allItems.indexOf(item)).join(',');
+        // this.editedItem['Edited By'] = userIDs;
+      },
+
+      deleteItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.dialogDelete = true;
+      },
+      viewItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.viewDialog = true;
+      },
+
+      deleteItemConfirm() {
+        this.appIsLoading = true;
+        this.showSnackbar("Deleting ...", "warning", -1);
+        this.closeDelete();
+        google.script.run
+          .withSuccessHandler((res) => {
+            console.log(res);
+            this.dataTable.splice(this.editedIndex, 1);
+            this.loadDataTable(res);
+            this.showSnackbar("Record deleted successfully", "success");
+            this.appIsLoading = false;
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+          })
+          .deleteRecord(this.editedItem);
+      },
+
+      close() {
+        this.dialog = false;
+        this.$nextTick(() => {
+          this.editedItem = Object.assign({}, this.defaultItem);
+          this.editedIndex = -1;
+        });
+      },
+
+      closeDelete() {
+        this.dialogDelete = false;
+        this.$nextTick(() => {
+          this.editedItem = Object.assign({}, this.defaultItem);
+          this.editedIndex = -1;
+        });
+      },
+
+      save() {
+        if (!this.validate()) {
+          return;
+        }
+        this.showSnackbar("Saving item...", "info");
+        this.appIsLoading = true;
+        // Handle fld of type tags
+        this.schema.forEach((fld) => {
+          if (fld.type === "tags") {
+            this.editedItem[fld.key] = this.editedItem[fld.key].join(",");
+          }
+        });
+
+        if (this.editedIndex > -1) {
+          console.log("Edited Item", this.editedItem);
+          google.script.run
+            .withSuccessHandler((res) => {
+              this.showSnackbar(`Record saved successfully!`, "success");
+              this.loadDataTable(res);
+              this.resetForm();
+            })
+            .withFailureHandler((error) => {
+              console.log(error);
+            })
+            .updateRecordById(this.editedItem);
+        } else {
+          google.script.run
+            .withSuccessHandler((res) => {
+              this.showSnackbar(`Record saved successfully!`, "success");
+              this.loadDataTable(res);
+              this.resetForm();
+            })
+            .withFailureHandler((error) => {
+              console.log(error);
+            })
+            .createRecord(this.editedItem);
+        }
+        this.close();
+      },
+      resetForm() {
+        this.editedItem = Object.assign({}, this.defaultItem);
+        this.editedIndex = -1;
+        this.appIsLoading = false;
+      },
+      validate() {
+        let valid = true;
+        let errorMsg = "";
+        console.log("Validating", this.editedItem);
+        this.schema.forEach((item) => {
+          if (item.required && this.editedItem[item.key] === "") {
+            console.log("Validation Error", item.key);
+            valid = false;
+            errorMsg = `Please fill in all mandatory fields marked with *. ${item.label} is required`;
+          }
+          if (item.key === "CONTACT NUMBER") {
+            console.log("Validation Error", item.key);
+
+            const phoneRegex = /^9\d{9}$/;
+            if (!phoneRegex.test(this.editedItem[item.key])) {
+              valid = false;
+              errorMsg = `Please enter a valid phone number`;
+            }
+          }
+        });
+        if (!valid) {
+          this.showSnackbar(errorMsg, "error");
+          return false;
+        }
+        return valid;
+      },
+      showSnackbar(text, color, timeout = 2000) {
+        this.snackbar.text = text;
+        this.snackbar.color = color;
+        this.snackbar.show = true;
+        this.snackbar.timeout = timeout;
+      },
+      // Fungsi untuk mengirim pesan ke nomor plat
+      sendInfoRecord(item) {
+        this.showSnackbar("Mengirim Pesan!", "warning");
+        const id = item[this.prefs.IdColumn];
+        google.script.run
+          .withSuccessHandler((response) => {
+            this.showSnackbar("Berhasil Terkirim!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.log("Gagal Mengirim Pesan!:", id, "Error:", error);
+            this.showSnackbar("Gagal Mengirim Pesan!.", "error");
+          })
+          .sendInfoRecord(id);
+      },
+      // Fungsi untuk memulai scraping nomor plat
+      startScraping(item) {
+        if (!item || !this.prefs || !this.prefs.IdColumn) {
+          this.showSnackbar("Data Tidak Valid!", "error");
+          return;
+        }
+
+        const id = item[this.prefs.IdColumn];
+        if (!id) {
+          this.showSnackbar("Plat Tidak Ditemukan!.", "error");
+          return;
+        }
+
+        this.showSnackbar("Mencari Plat!", "warning");
+
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showSnackbar("Berhasil Mencari Plat!.", "success");
+            this.refresh();
+          })
+          .withFailureHandler((error) => {
+            console.log("Error:", error);
+            this.showSnackbar("Gagal Mencari Plat!.", "error");
+          })
+          .startScraping(id);
+      },
+      editTemplate() {
+        window.open(this.templateUrl, "_blank");
+      },
+      dashboardTawkto() {
+        window.open(this.templateTawkto, "_blank");
+      },
+      // Fungsi untuk menghapus data
+      recreateTahunan() {
+        google.script.run
+          .withSuccessHandler((response) => {
+            console.log("Backup and cleanup successful:", response);
+            this.showSnackbar("Backup and cleanup successful!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.error("Error during backup and cleanup:", error);
+            this.showSnackbar("Error during backup and cleanup.", "error");
+          })
+          .recreateTahunan();
+        this.confirmDialog = false;
+      },
+      // Fungsi untuk membuat PDF
+      generatePdf(item) {
+        console.log("Cetak PDF button clicked for item:", item);
+        if (!item || !this.prefs || !this.prefs.IdColumn) {
+          this.showSnackbar("Data Tidak Valid!", "error");
+          return;
+        }
+        const id = item[this.prefs.IdColumn];
+        if (!id) {
+          this.showSnackbar("ID Tidak Ditemukan!", "error");
+          return;
+        }
+        console.log("Calling generatePdfForId with ID:", id);
+        this.showSnackbar("Membuat Surat!", "warning");
+        google.script.run
+          .withSuccessHandler((pdfUrl) => {
+            this.onPdfGenerated(pdfUrl);
+            this.showSnackbar("Surat Berhasil Dibuat!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.log("Error:", error);
+            this.showSnackbar("Gagal Membuat Surat!", "error");
+          })
+          .generatePdfForId(id);
+      },
+      onPdfGenerated(pdfUrl) {
+        window.open(pdfUrl, "_blank");
+      },
+    },
+  })
+    .use(vuetify)
+    .mount("#app");
+</script>

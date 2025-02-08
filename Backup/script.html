@@ -1,0 +1,441 @@
+<script type="module">
+  const { createApp } = Vue;
+  const { createVuetify } = Vuetify;
+
+  const vuetify = createVuetify();
+
+  createApp({
+    template: "#app-template",
+    mixins: [computeMixin],
+    data: () => ({
+      appIndex: 1,
+      apps: [],
+      appName: "",
+      pageToken: null,
+      pageSize: 20,
+      showRefresh: false,
+      saving: false,
+      appIsLoading: false,
+      dialog: false,
+      dialogDelete: false,
+      uploading: false,
+      viewDialog: false,
+      schema: null,
+      prefs: null,
+      selectedEmployee: null,
+      search: "",
+      searchLocal: "",
+      searchField: null,
+      headers: [],
+      rules: {
+        required: (value) => !!value || "Required.",
+        integer: (value) => /^[0-9]+$/.test(value) || "Invalid integer value",
+        decimalUpto2: (value) => {
+          console.log("Decimal Validation", value);
+          return (
+            /^[0-9]+(\.[0-9]{1,2})?$/.test(value) || "Invalid decimal value"
+          );
+        },
+        year: (value) => /^[0-9]{4}$/.test(value) || "Invalid year",
+      },
+      dataTable: [],
+      editedIndex: -1,
+      editedItem: {},
+      defaultItem: {},
+      snackbar: {
+        text: "",
+        show: false,
+        timeout: 2000,
+        color: "success",
+        multiline: true,
+        vertical: true,
+        right: true,
+        bottom: true,
+      },
+      isOpen: false,
+      options: ["Dashboard Admin", "Edit Template", "Recreate Tahunan"], // Menambahkan opsi baru
+      confirmDialog: false, // Menambahkan state untuk dialog konfirmasi
+      templateUrl:
+        "https://docs.google.com/document/d/17YyaXTovXjnUv4QoPSgi4WfhYmO484qMHowTqs_Cw0Y/edit", // Ganti dengan URL template Anda
+      templateTawkto: "https://dashboard.tawk.to/",
+    }),
+
+    computed: {
+      formTitle() {
+        return this.editedIndex === -1 ? "New Record" : "Edit Record";
+      },
+    },
+
+    watch: {
+      dialog(val) {
+        val || this.close();
+      },
+      dialogDelete(val) {
+        val || this.closeDelete();
+      },
+      viewDialog(val) {
+        val || this.close();
+      },
+    },
+
+    mounted() {
+      this.fetchSchema();
+      this.refresh();
+    },
+
+    methods: {
+      handleOptionSelect(option) {
+        if (option === "Recreate Tahunan") {
+          this.confirmDialog = true;
+        } else if (option === "Edit Template") {
+          this.editTemplate();
+        } else if (option === "Dashboard Admin") {
+          this.dashboardTawkto();
+        } else {
+          console.log("Selected:", option);
+        }
+      },
+      fetchSchema() {
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.apps = res;
+            this.apps.forEach((app, index) => {
+              app.schema.forEach((item) => {
+                if (item.required) {
+                  item.label = `${item.label} *`;
+                }
+              });
+            });
+            this.toggleApp();
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+          })
+          .getAppPrefs();
+      },
+
+      toggleApp() {
+        const app = this.apps[this.appIndex];
+        this.appName = app.appSettings.AppName;
+        this.schema = app.schema;
+        this.prefs = app.appSettings;
+
+        const schema = app.schema.map((item) => {
+          if (
+            item.type === "select_option_source" &&
+            typeof item.optionSource === "string"
+          ) {
+            item.optionSource = {
+              source: item.optionSource.split("&")[0].split("=")[1],
+              key: item.optionSource.split("&")[1].split("=")[1],
+              label: item.optionSource.split("&")[2].split("=")[1],
+            };
+          }
+          return item;
+        });
+
+        this.headers = schema.map((item) => ({
+          title: item.label,
+          key: item.key,
+          sortable: item.sortable || true,
+          align: item.align || "start",
+          width: item.width || null,
+          type: item.type,
+        }));
+
+        const idHeader = { title: "ID", key: this.prefs.IdColumn };
+        this.headers = [
+          idHeader,
+          ...this.headers,
+          {
+            text: "Actions",
+            key: "actions",
+            sortable: false,
+            width: "5%",
+          },
+        ];
+
+        this.editedItem = schema.reduce((acc, item) => {
+          acc[item.key] = item.defaultValue || "";
+          return acc;
+        }, {});
+        this.defaultItem = { ...this.editedItem };
+        this.refresh(this.prefs);
+
+        schema.forEach((item) => {
+          if (item.type === "select_option_source" && item.optionSource) {
+            google.script.run
+              .withSuccessHandler((res) => {
+                item.options = JSON.parse(res);
+              })
+              .withFailureHandler((error) => {
+                console.log(error);
+              })
+              .getSheetData(item.optionSource.source);
+          }
+        });
+        this.schema = schema;
+      },
+      sendInfoRecord(item) {
+        this.showSnackbar("Mengirim Pesan!", "warning");
+        const id = item[this.prefs.IdColumn]; // Extract the ID from the item
+        google.script.run
+          .withSuccessHandler((response) => {
+            this.showSnackbar("Berhasil Terkirim!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.log("Gagal Mengirim Pesan!:", id, "Error:", error);
+            this.showSnackbar("Gagal Mengirim Pesan!.", "error");
+          })
+          .sendInfoRecord(id); // Call the correct backend function with the ID
+      },
+      startScraping(item) {
+        if (!item || !this.prefs || !this.prefs.IdColumn) {
+          this.showSnackbar("Data Tidak Valid!", "error");
+          return;
+        }
+
+        const id = item[this.prefs.IdColumn];
+        if (!id) {
+          this.showSnackbar("Plat Tidak Ditemukan!.", "error");
+          return;
+        }
+
+        this.showSnackbar("Mencari Plat!", "warning");
+
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showSnackbar("Berhasil Mencari Plat!.", "success");
+            this.refresh();
+          })
+          .withFailureHandler((error) => {
+            console.log("Error:", error);
+            this.showSnackbar("Gagal Mencari Plat!.", "error");
+          })
+          .startScraping(id);
+      },
+      editTemplate() {
+        window.open(this.templateUrl, "_blank"); // Buka URL template di tab baru
+      },
+      dashboardTawkto() {
+        window.open(this.templateTawkto, "_blank"); // Buka URL template di tab baru
+      },
+      recreateTahunan() {
+        google.script.run
+          .withSuccessHandler((response) => {
+            console.log("Backup and cleanup successful:", response);
+            this.showSnackbar("Backup and cleanup successful!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.error("Error during backup and cleanup:", error);
+            this.showSnackbar("Error during backup and cleanup.", "error");
+          })
+          .recreateTahunan();
+        this.confirmDialog = false; // Tutup dialog konfirmasi setelah eksekusi
+      },
+      refresh(appSettings = null) {
+        this.appIsLoading = true;
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.dataTable = JSON.parse(res);
+            this.showRefresh = false;
+            this.appIsLoading = false;
+            this.search = "";
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+          })
+          .readAllRecords(appSettings);
+      },
+      generatePdf(item) {
+        // Log the click event and the item being processed
+        console.log("Cetak PDF button clicked for item:", item);
+        if (!item || !this.prefs || !this.prefs.IdColumn) {
+          this.showSnackbar("Data Tidak Valid!", "error");
+          return;
+        }
+
+        const id = item[this.prefs.IdColumn];
+        if (!id) {
+          this.showSnackbar("ID Tidak Ditemukan!", "error");
+          return;
+        }
+
+        // Log the ID being passed to the PDF generation function
+        console.log("Calling generatePdfForId with ID:", id);
+
+        this.showSnackbar("Membuat Surat!", "warning");
+
+        google.script.run
+          .withSuccessHandler((pdfUrl) => {
+            this.onPdfGenerated(pdfUrl);
+            this.showSnackbar("Surat Berhasil Dibuat!", "success");
+          })
+          .withFailureHandler((error) => {
+            console.log("Error:", error);
+            this.showSnackbar("Gagal Membuat Surat!", "error");
+          })
+          .generatePdfForId(id);
+      },
+      onPdfGenerated(pdfUrl) {
+        window.open(pdfUrl, "_blank");
+      },
+      save() {
+        if (!this.validate()) {
+          return;
+        }
+        if (!this.customValidate()) {
+          return;
+        }
+
+        this.showSnackbar("Saving item...", "info");
+        this.appIsLoading = true;
+
+        if (this.editedIndex > -1) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              this.showSnackbar("Record updated successfully!", "success");
+              this.resetForm();
+              this.refresh(this.prefs);
+              this.appIsLoading = false;
+            })
+            .withFailureHandler((error) => {
+              console.log(error);
+              this.showSnackbar("Failed to update record.", "error");
+            })
+            .updateRecordById(this.editedItem, this.prefs);
+        } else {
+          google.script.run
+            .withSuccessHandler((res) => {
+              this.showSnackbar("Record saved successfully!", "success");
+              this.resetForm();
+              this.refresh(this.prefs);
+              this.appIsLoading = false;
+            })
+            .withFailureHandler((error) => {
+              console.log(error);
+              this.showSnackbar("Failed to save record.", "error");
+            })
+            .createRecord(this.editedItem, this.prefs);
+        }
+        this.close();
+      },
+      validate() {
+        let valid = true;
+        let errorMsg = "";
+        console.log("Validating", this.editedItem);
+        this.schema.forEach((item) => {
+          if (item.required && this.editedItem[item.key] === "") {
+            console.log("Validation Error", item.key);
+            valid = false;
+            errorMsg = `${item.label} is required`;
+          }
+        });
+        if (!valid) {
+          this.showSnackbar(
+            "Please fill in all mandatory fields marked with *",
+            "error"
+          );
+          return false;
+        }
+
+        if (!valid) {
+          this.showSnackbar(errorMsg, "error");
+          return false;
+        }
+
+        return valid;
+      },
+      customValidate() {
+        if (this.appName === "Ships") {
+          const imo = this.editedItem["imo"];
+
+          if (this.editedIndex > -1) {
+            const existingImo = this.dataTable.find(
+              (item) =>
+                item["imo"] === imo && item["#"] !== this.editedItem["#"]
+            );
+            if (existingImo) {
+              this.showSnackbar("IMO already exists", "error");
+              return false;
+            } else {
+              return true;
+            }
+          } else {
+            const existingImo = this.dataTable.find(
+              (item) => item["imo"] === imo
+            );
+            if (existingImo) {
+              this.showSnackbar("IMO already exists", "error");
+              return false;
+            } else {
+              return true;
+            }
+          }
+        }
+        return true;
+      },
+      editItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.dialog = true;
+      },
+      viewItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.viewDialog = true;
+      },
+      deleteItem(item) {
+        this.editedIndex = this.dataTable.indexOf(item);
+        this.editedItem = Object.assign({}, item);
+        this.dialogDelete = true;
+      },
+
+      deleteItemConfirm() {
+        this.showSnackbar("Deleting ...", "warning");
+        this.appIsLoading = true;
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.dataTable.splice(this.editedIndex, 1);
+            this.closeDelete();
+            this.showSnackbar("Record deleted successfully", "success");
+            this.appIsLoading = false;
+          })
+          .withFailureHandler((error) => {
+            console.log(error);
+            this.showSnackbar("Failed to delete record.", "error");
+          })
+          .deleteRecord(this.editedItem, this.prefs);
+      },
+
+      close() {
+        this.dialog = false;
+        this.$nextTick(() => {
+          this.editedItem = Object.assign({}, this.defaultItem);
+          this.editedIndex = -1;
+        });
+      },
+
+      closeDelete() {
+        this.dialogDelete = false;
+        this.$nextTick(() => {
+          this.editedItem = Object.assign({}, this.defaultItem);
+          this.editedIndex = -1;
+        });
+      },
+
+      resetForm() {
+        this.editedItem = Object.assign({}, this.defaultItem);
+        this.editedIndex = -1;
+      },
+
+      showSnackbar(text, color) {
+        this.snackbar.text = text;
+        this.snackbar.color = color;
+        this.snackbar.show = true;
+      },
+    },
+  })
+    .use(vuetify)
+    .mount("#app");
+</script>

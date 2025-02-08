@@ -1,0 +1,45 @@
+<template v-if="currentSession === 'signup'">
+  <v-card width="600" class="mx-auto my-2 px-4 py-4">
+    <h4 class="mx-4">Sign up</h4>
+    <v-form :loading="submitting">
+      <v-text-field
+        v-model="signupForm.email"
+        label="Email"
+        required
+        @change="()=>{
+                  checkInvitation()
+                }"
+      ></v-text-field>
+      <v-text-field
+        v-model="signupForm.invitation"
+        label="Invitation code"
+        required
+        @change="()=>{
+                  checkInvitation()
+                }"
+      ></v-text-field>
+      <v-text-field
+        v-model="signupForm.role"
+        label="Role"
+        disabled
+      ></v-text-field>
+      <v-text-field
+        v-model="signupForm.name"
+        label="Name"
+        required
+      ></v-text-field>
+      <v-text-field
+        v-model="signupForm.password"
+        label="Password"
+        required
+      ></v-text-field>
+      <v-text-field
+        v-model="signupForm.passwordConfirmed"
+        label="Confirm password"
+        required
+      ></v-text-field>
+
+      <v-btn @click="signup">Sign up</v-btn>
+    </v-form>
+  </v-card>
+</template>

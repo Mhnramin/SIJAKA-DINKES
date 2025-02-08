@@ -1,0 +1,19 @@
+<template v-if="currentSession === 'login'">
+  <v-card width="600" class="mx-auto my-2 px-4 py-4">
+    <img src="https://i.imgur.com/3UGnxUn.png" alt="Logo" width="90" />
+    <h4 class="mx-4"><b>Log in</b></h4>
+    <v-form :loading="submitting">
+      <v-text-field
+        v-model="loginForm.email"
+        label="Email"
+        required
+      ></v-text-field>
+      <v-text-field
+        v-model="loginForm.password"
+        label="Password"
+        required
+      ></v-text-field>
+      <v-btn @click="login" color="blue">Log in</v-btn>
+    </v-form>
+  </v-card>
+</template>

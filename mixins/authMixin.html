@@ -1,0 +1,580 @@
+<script>
+  const authMixin = {
+    data() {
+      return {
+        loginForm: {
+          email: "",
+          password: "",
+        },
+        signupForm: {
+          invitation: "",
+          role: "",
+          name: "",
+          email: "",
+          password: "",
+          passwordConfirmed: "",
+        },
+        invitationForm: {
+          email: "",
+          invitation: "",
+        },
+        approvalForm: {
+          uuid: "",
+          titile: "",
+          description: "",
+          assignTo: "",
+          createdBy: "",
+          files: "",
+          status: "",
+          comments: "",
+        },
+        changePasswordForm: {
+          oldPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        },
+        files: null,
+        currentUser: null,
+        currentSession: "login",
+        users: {},
+        invitations: {},
+        userHeaders: [
+          { title: "Name", align: "start", key: "name" },
+
+          { title: "Email", align: "start", key: "email" },
+          { title: "Role", align: "start", key: "role" },
+          { title: "Status", align: "start", key: "status" },
+          { title: "Actions", align: "start", key: "action" },
+        ],
+        invitationHeaders: [
+          { title: "Email", align: "start", key: "email" },
+          { title: "Invitation", align: "start", key: "invitation" },
+          { title: "Role", align: "start", key: "role" },
+          { title: "Status", align: "start", key: "status" },
+          { title: "Actions", align: "start", key: "action" },
+        ],
+        approvals: {},
+        submitting: false,
+        message: "",
+        popupData: {},
+        dialogDeleteInvitation: false,
+        dialogDeleteUser: false,
+        dialogChangeUserRole: false,
+        drawer: false,
+        group: null,
+      };
+    },
+    watch: {
+      currentUser: function (newVal, oldVal) {
+        if (newVal) {
+          console.log("User is logged in", newVal);
+          this.filterDataOnRoleBasis();
+        }
+      },
+      group() {
+        this.drawer = false;
+      },
+    },
+    mounted() {
+      this.getUserData();
+    },
+    methods: {
+      getUserData: function () {
+        let userData = JSON.parse(localStorage.getItem("data"));
+        if (userData) {
+          this.showSnackbar("Attempting to log in...", "teal", -1);
+          let { email, token } = userData;
+          google.script.run
+            .withSuccessHandler((userToken) => {
+              if (userToken === token) {
+                google.script.run
+                  .withSuccessHandler(({ users, approvals, invitations }) => {
+                    this.users = users;
+                    this.approvals = approvals;
+                    this.invitations = invitations;
+                    this.currentUser = JSON.parse(JSON.stringify(users[email]));
+                    this.currentSession = "home";
+                    this.showSnackbar(
+                      "Welcome back, " + this.currentUser.name + "!",
+                      "green"
+                    );
+                  })
+                  .getData();
+              } else {
+                google.script.run
+                  .withSuccessHandler((invitations) => {
+                    this.invitations = invitations;
+                    this.showSnackbar("Please log in again.", "orange");
+                  })
+                  .getInvitations();
+              }
+            })
+            .getToken(email);
+        } else {
+          google.script.run
+            .withSuccessHandler((invitations) => {
+              this.invitations = invitations;
+            })
+            .getInvitations();
+        }
+      },
+      login: function () {
+        this.showSnackbar("Log in...", "teal");
+        let email = this.loginForm.email.trim().toLowerCase();
+        let password = this.loginForm.password.trim();
+        console.log(email);
+        if (email && password) {
+          this.submitting = true;
+          google.script.run
+            .withSuccessHandler(({ token, users, approvals, invitations }) => {
+              switch (token) {
+                case "invalid":
+                  this.showSnackbar("Email address not found.", "red");
+                  break;
+                case "mismatch":
+                  this.showSnackbar("Wrong password.", "red");
+                  break;
+                default:
+                  this.users = users;
+                  this.approvals = approvals;
+                  this.invitations = invitations;
+                  this.currentUser = JSON.parse(
+                    JSON.stringify(this.users[email])
+                  );
+                  localStorage.setItem(
+                    "data",
+                    JSON.stringify({ email, token })
+                  );
+
+                  this.showSnackbar(
+                    "Welcome, " + this.currentUser.name + "!",
+                    "teal"
+                  );
+                  this.filterDataOnRoleBasis();
+                  this.goToSession("home");
+                  break;
+              }
+
+              this.submitting = false;
+            })
+            .withFailureHandler(this.showError)
+            .login(email, password);
+        } else {
+          this.showSnackbar("Email and password can't be empty.", "red");
+        }
+      },
+      signup: function () {
+        this.message = ``;
+        let email = this.signupForm.email.trim().toLowerCase();
+        console.log(email);
+        if (this.signupForm.role) {
+          if (this.invitations[email].status !== "new") {
+            this.showSnackbar(
+              "Invalid inviataion status: " +
+                this.invitations[email].status +
+                ", please ask admin for help.",
+              "red"
+            );
+          } else {
+            if (
+              this.signupForm.password !== this.signupForm.passwordConfirmed
+            ) {
+              this.showSnackbar("Passwords don't match", "red");
+            } else {
+              // save sign up info to the database
+              this.submitting = true;
+
+              this.showSnackbar("Submitting...", "teal");
+              google.script.run
+                .withSuccessHandler((user) => {
+                  this.users[email] = user;
+
+                  this.showSnackbar(
+                    "Thanks for you registration, please login.",
+                    "teal"
+                  );
+                  this.resetSignupForm();
+                  this.submitting = false;
+                })
+                .withFailureHandler(this.showError)
+                .addUser(this.signupForm);
+            }
+          }
+        } else {
+          this.showSnackbar(
+            "Role can't be empty, please check if the email and invitation code are correct.",
+            "red"
+          );
+        }
+      },
+      sendInvitation: function () {
+        let email = this.invitationForm.email.trim().toLowerCase();
+        let role = this.invitationForm.role;
+
+        this.showSnackbar("Sending...", "teal");
+        if (role && email) {
+          if (this.invitations[email]) {
+            this.showSnackbar(
+              "User " +
+                email +
+                " was already invited, please try another email or sign up.",
+              "red"
+            );
+          } else {
+            this.submitting = true;
+            google.script.run
+              .withSuccessHandler((invitation) => {
+                this.invitations[invitation.email] = invitation;
+                this.submitting = false;
+
+                this.showSnackbar(
+                  "An invitation has been send to " + email + ".",
+                  "teal"
+                );
+                this.resetInvitationForm();
+              })
+              .withFailureHandler(this.showError)
+              .sendInvitation(email, role);
+          }
+        } else {
+          this.showSnackbar("Email and role can't be empty.", "red");
+        }
+      },
+      checkInvitation: function () {
+        this.signupForm.role = "";
+        let invitation = this.signupForm.invitation.trim();
+        let email = this.signupForm.email.trim().toLowerCase();
+        console.log("Invitations", this.invitations);
+        if (email && invitation) {
+          if (this.invitations[email]) {
+            let invitedUser = this.invitations[email];
+            if (invitedUser.invitation === invitation) {
+              this.signupForm.role = invitedUser.role;
+            }
+          }
+        }
+      },
+      createApproval: function () {
+        if (this.approvalForm.assignTo.indexOf("@")) {
+          if (this.approvalForm.assignTo && this.approvalForm.title) {
+            this.submitting = true;
+            this.message = `<p class="teal-text">Sending ...<\/p>`;
+            let email = this.currentUser.email.toString();
+            this.approvalForm.createdBy = email;
+            this.approvalForm.files = this.files;
+
+            google.script.run
+              .withSuccessHandler((approval) => {
+                this.approvals[approval.uuid] = approval;
+                this.approvals = JSON.parse(JSON.stringify(this.approvals));
+
+                this.resetApprovalForm();
+                this.message = `<p class="teal-text">New approval has been created.<\/p>`;
+                this.submitting = false;
+              })
+              .withFailureHandler(this.showError)
+              .createApproval(this.approvalForm);
+          } else {
+            this.message = `<p class="red-text">Assgin to and title can't be empty.<\/p>`;
+          }
+        } else {
+          this.message = `<p class="red-text">Assgin to has to be a valid email address.<\/p>`;
+        }
+      },
+      changeApprovalStatus: function () {
+        this.message = `<p class="teal-text">Sending ...<\/p>`;
+        this.popupData.callback = null;
+        let email = this.popupData.email;
+        let uuid = this.popupData.uuid;
+        let status = this.popupData.status;
+        let comments = this.popupData.comments;
+        comments = `[${this.currentUser.email}]-[${status}]-[${comments}]`;
+        if (email === undefined) {
+          google.script.run
+            .withSuccessHandler((approval) => {
+              this.approvals[approval.uuid] = approval;
+              this.approvals = JSON.parse(JSON.stringify(this.approvals));
+              this.message = `<p class="teal-text">${approval.status}<br>${approval.comments}<\/p>`;
+              this.submitting = false;
+              this.popupData = {};
+            })
+            .withFailureHandler(this.showError)
+            .changeApprovalStatus(email, uuid, status, comments);
+        } else {
+          if (this.popupData.email.indexOf("@") > 0) {
+            google.script.run
+              .withSuccessHandler((approval) => {
+                this.approvals[approval.uuid] = approval;
+                this.approvals = JSON.parse(JSON.stringify(this.approvals));
+                this.message = `<p class="teal-text">${approval.status}<br>${approval.comments}<\/p>`;
+                this.submitting = false;
+                this.popupData = {};
+              })
+              .withFailureHandler(this.showError)
+              .changeApprovalStatus(email, uuid, status, comments);
+          } else {
+            this.message = `<p class="red-text">Reassign to email address is invalid.<\/p>`;
+          }
+        }
+      },
+      logout: function () {
+        this.currentUser = null;
+        this.goToSession("login");
+        this.refresh();
+        localStorage.removeItem("data");
+      },
+      goToSession: function (session) {
+        switch (session) {
+          case "login":
+            this.resetLoginForm();
+            break;
+          case "signup":
+            this.resetSignupForm();
+            break;
+          case "invitation":
+            this.resetInvitationForm();
+            break;
+          case "newApproval":
+            this.resetApprovalForm();
+            break;
+          case "userInfo":
+            let email = this.currentUser.email;
+            this.currentUser = JSON.parse(JSON.stringify(this.users[email]));
+            break;
+          case "allApprovals":
+            break;
+          case "pendingApprovals":
+            break;
+          case "sentApprovals":
+            break;
+          case "manageUsers":
+            break;
+          case "changePasswordSession":
+            this.resetChangePasswordForm();
+            break;
+        }
+        this.currentSession = session;
+        this.drawer = false;
+      },
+      resetLoginForm: function () {
+        this.loginForm = {
+          email: "",
+          password: "",
+        };
+      },
+      resetSignupForm: function () {
+        this.signupForm = {
+          invitation: "",
+          role: "",
+          name: "",
+
+          email: "",
+          password: "",
+          passwordConfirmed: "",
+        };
+      },
+      resetInvitationForm: function () {
+        this.invitationForm = {
+          email: "",
+          invitation: "",
+        };
+        // M.FormSelect.init(document.querySelectorAll('select'))
+      },
+      resetApprovalForm: function () {
+        this.approvalForm = {
+          uuid: "",
+          titile: "",
+          description: "",
+          assignTo: "",
+          createdBy: "",
+          files: "",
+          status: "",
+          comments: "",
+        };
+        this.files = [];
+        let fileinput = document.querySelector("#files-new-approval");
+        if (fileinput) {
+          fileinput.value = null;
+        }
+      },
+      resetChangePasswordForm: function () {
+        this.changePasswordForm = {
+          oldPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        };
+      },
+      showError: function (error) {
+        this.message = `<p class="red-text">${error.message}<\/p>`;
+        this.submitting = false;
+      },
+      readFiles: function (e) {
+        let files = e.target.files;
+        this.files = [];
+        for (let i = 0; i < files.length; i++) {
+          let file = files[i];
+          this.files.push({
+            name: file.name,
+            type: file.type,
+            data: null,
+          });
+
+          let reader = new FileReader();
+          reader.onload = () => {
+            this.files[i].data = reader.result.split(";base64,")[1];
+          };
+          reader.readAsDataURL(file);
+        }
+      },
+      setPopup: function (data) {
+        this.popupData = data;
+      },
+
+      deleteUser: function (data) {
+        this.popupData = data;
+        this.dialogDeleteUser = true;
+      },
+      deleteInvitation: function (data) {
+        this.popupData = data;
+        this.dialogDeleteInvitation = true;
+      },
+      changeUserRole: function (data) {
+        this.popupData.email = data.email;
+        this.dialogChangeUserRole = true;
+      },
+
+      changeUserRoleConfirm: function () {
+        let email = this.popupData.email;
+        let role = this.popupData.role;
+        if (email && role) {
+          if (role !== this.users[email].role) {
+            this.submitting = true;
+
+            this.showSnackbar("Submitting...", "teal");
+            google.script.run
+              .withSuccessHandler(() => {
+                this.showSnackbar("Role has been change to " + role, "teal");
+                this.users[email].role = role;
+                this.users = JSON.parse(JSON.stringify(this.users));
+                this.submitting = false;
+              })
+              .withFailureHandler(this.showError)
+              .changeUserRole(email, role);
+          } else {
+            this.showSnackbar("No role change to the user.", "red");
+          }
+        }
+      },
+      changeUserProfile: function () {
+        if (this.currentUser.name) {
+          this.submitting = true;
+
+          this.showSnackbar("Submitting...", "teal");
+          google.script.run
+            .withSuccessHandler(() => {
+              this.users[this.currentUser.email] = this.currentUser;
+              this.users = JSON.parse(JSON.stringify(this.users));
+              this.submitting = false;
+            })
+            .withFailureHandler(this.showError)
+            .changeUserProfile(this.currentUser);
+        } else {
+          this.showSnackbar("User profile can't be empty.", "red");
+        }
+      },
+      deleteUserConfirm: function () {
+        let key = this.popupData.email;
+        if (key) {
+          this.submitting = true;
+          this.message = `<p class="teal-text">Deleting user ${this.popupData.name} ...<\/p>`;
+          this.showSnackbar("Submitting...", "teal");
+          google.script.run
+            .withSuccessHandler(() => {
+              delete this.users[key];
+              this.users = JSON.parse(JSON.stringify(this.users));
+
+              this.showSnackbar("User has been removed.", "teal");
+              this.submitting = false;
+            })
+            .withFailureHandler(this.showError)
+            .deleteUser(key);
+        }
+      },
+      deleteInvitationConfirm: function () {
+        let key = this.popupData.email;
+        this.submitting = true;
+        this.showSnackbar("Submitting...", "teal");
+        if (key) {
+          google.script.run
+            .withSuccessHandler(() => {
+              delete this.invitations[key];
+              this.invitations = JSON.parse(JSON.stringify(this.invitations));
+              this.showSnackbar("User has been removed.", "teal");
+              this.submitting = false;
+            })
+            .withFailureHandler(this.showError)
+            .deleteInvitation(key);
+        }
+      },
+      cancelApproval: function () {
+        let key = this.popupData.uuid;
+        this.submitting = true;
+        this.message = `<p class="teal-text">Cancelling approval ${this.popupData.approvalTitle} ...<\/p>`;
+        if (key) {
+          google.script.run
+            .withSuccessHandler(() => {
+              delete this.approvals[key];
+              this.approvals = JSON.parse(JSON.stringify(this.approvals));
+              this.message = `<p class="teal-text">User ${this.popupData.approvalTitle} has been removed.<\/p>`;
+              this.submitting = false;
+            })
+            .withFailureHandler(this.showError)
+            .cancelApproval(key);
+        }
+      },
+      changePassword: function () {
+        let oldPassword = this.changePasswordForm.oldPassword;
+        let newPassword = this.changePasswordForm.newPassword;
+        let confirmPassword = this.changePasswordForm.confirmPassword;
+
+        this.showSnackbar("Submitting...", "teal");
+        if (oldPassword && newPassword && confirmPassword) {
+          if (newPassword !== confirmPassword) {
+            this.showSnackbar(
+              "New password and confirmed password are mismatch.",
+              "red"
+            );
+          } else {
+            if (newPassword === oldPassword) {
+              this.showSnackbar(
+                "New password can't be the same with old one.",
+                "red"
+              );
+            } else {
+              // save the change to spreadsheet
+              this.submitting = true;
+              google.script.run
+                .withSuccessHandler((result) => {
+                  if (result) {
+                    this.showSnackbar(result, "teal");
+                    this.logout();
+                  } else {
+                    this.showSnackbar("The old password is wrong.", "red");
+                  }
+                  this.submitting = false;
+                })
+                .withFailureHandler(this.showError)
+                .changePassword(
+                  this.currentUser.email,
+                  oldPassword,
+                  newPassword
+                );
+            }
+          }
+        } else {
+          this.showSnackbar("Passwords can't be empty.", "red");
+        }
+      },
+    },
+  };
+</script>

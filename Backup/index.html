@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.0.5"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/vuetify/3.4.8/vuetify-labs.min.js"
+      integrity="sha512-5xeIAXqNP/DWGkolQzdPAL042aA4Lb8SCMy/Ju+9yzvf9SzfsbzICQwYyMrhbN8pG8m0LWhMl9BISpIDs8RquQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/vuetify/3.4.8/vuetify-labs.min.css"
+      integrity="sha512-VP/8WyNQxaDeiVsCGXh7nLWVPt64+rqoCugT7xhZLhx9F8fTJpjpiCqHqJlhmKAMgyRU8TiAAxJmmxz260R03w=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <!--Start of Tawk.to Script-->
+    <script type="text/javascript">
+      var Tawk_API = Tawk_API || {},
+        Tawk_LoadStart = new Date();
+      (function () {
+        var s1 = document.createElement("script"),
+          s0 = document.getElementsByTagName("script")[0];
+        s1.async = true;
+        s1.src = "https://embed.tawk.to/67a6094b825083258e11b9cd/1ijg98kvl";
+        s1.charset = "UTF-8";
+        s1.setAttribute("crossorigin", "*");
+        s0.parentNode.insertBefore(s1, s0);
+      })();
+    </script>
+    <!--End of Tawk.to Script-->
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <?!= include('computeMixin'); ?>
+    <?!= include('script'); ?>
+    <script type="text/x-template" id="app-template">
+      <v-app>
+                    <v-data-table-virtual
+                      :headers="headers"
+                      :items="dataTable"
+                      :search="searchLocal"
+
+                      :sort-by="[{ key: 'calories', Record: 'asc' }]"
+                      fixed-header
+                      style="font-size: 11px;"
+                      :loading="appIsLoading"
+                      loading-text="Loading... Please wait"
+                    >
+                      <template v-slot:top>
+                        <v-toolbar
+                        :elevation="6"
+                        >
+                          <img src="https://i.imgur.com/3UGnxUn.png" alt="Logo" width="90" />
+                        <v-spacer></v-spacer>
+                        <v-btn-toggle
+                            v-model="appIndex"
+                            color="deep-purple-accent-3"
+                            rounded="0"
+                            group
+                          >
+                            <v-btn :value="i" v-for="(app,i) in apps" @click="toggleApp">
+                              {{app?.appSettings?.AppName}}
+                            </v-btn>
+                          </v-btn-toggle>
+                          <v-spacer></v-spacer>
+                          <v-text-field
+                            v-model="searchLocal"
+                            prepend-inner-icon="mdi-magnify"
+                            density="compact"
+                            label="Search "
+                            single-line
+                            flat
+                            hide-details
+                            variant="solo-filled"
+                         ></v-text-field>
+                         <v-spacer></v-spacer>
+                          <v-spacer></v-spacer>
+                        <v-spacer></v-spacer>
+                          <v-dialog
+                            v-model="dialog"
+                            max-width="900px"
+                          >
+                            <template v-slot:activator="{ props }">
+                              <v-btn
+                                color="blue"
+                                dark
+                                class="mb-2 mx-2"
+                                v-bind="props"
+                                prepend-icon="mdi-plus"
+                                variant="elevated"
+                              >
+                                New Item
+                              </v-btn>
+                            </template>
+
+
+                            <v-card>
+                              <v-card-title>
+                                <span class="text-h5">{{ formTitle }}</span>
+                              </v-card-title>
+                              <v-card-text>
+                                <v-container>
+                                  <v-row>
+
+                                      <v-col
+                                      v-for="fld in schema"
+                                      :key="fld.key"
+                                      cols="12"
+                                      sm="6"
+                                      md="4"
+                                  >
+
+                                    <div v-if="fld.type === 'text'||fld.type === 'image_url'">
+                                        <v-text-field
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            :rules="fld.required ? [rules.required]:[]"
+                                            :disabled="fld.disabled||false" variant="outlined"
+                                        ></v-text-field>
+                                    </div>
+                                    <div v-if="fld.type === 'textarea'">
+                                        <v-textarea
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            :rules="fld.required ? [rules.required]:[]" variant="outlined"
+                                        ></v-textarea>
+                                    </div>
+                                    <div v-if="fld.type === 'select'">
+                                        <v-select
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            :items="fld.options.split(',')"
+                                            :rules="fld.required ? [rules.required]:[]" variant="outlined"
+                                            :searchable="true"
+                                        ></v-select>
+                                    </div>
+                                    <div v-if="fld.type === 'select_option_source'">
+                                      <v-select
+                                          v-model="editedItem[fld.key]"
+                                          :label="fld.label"
+                                          :items="fld.options"
+                                          :item-title="fld.optionSource.label"
+                                          :item-value="fld.optionSource.key"
+                                          :rules="fld.required ? [rules.required]:[]"
+                                          :update:modelValue="handleSelectChange(editedItem,fld)" variant="outlined"
+                                          :searchable="true"
+                                      ></v-select>
+                                  </div>
+                                    <div v-if="fld.type === 'checkbox'">
+                                        <v-checkbox
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            :rules="fld.required ? [rules.required]:[]"
+                                        ></v-checkbox>
+                                    </div>
+                                    <div v-if="fld.type === 'radio'">
+                                        <v-radio-group inline v-model="editedItem[fld.key]" :rules="fld.required ? [rules.required]:[]">
+                                            <template v-slot:label>
+                                              <div>{{fld.label}}</div>
+                                            </template>
+                                            <v-radio
+                                            v-for="opt in fld.options.split(',')"
+                                            :key="opt"
+                                            :label="opt"
+                                            :value="opt"
+                                        ></v-radio>
+                                          </v-radio-group>
+                                    </div>
+                                    <div v-if="fld.type === 'date'">
+                                        <v-text-field
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            type="date"
+                                            :rules="fld.required ? [rules.required]:[]" variant="outlined"
+                                        ></v-text-field>
+                                    </div>
+                                    <div v-if="fld.type === 'time'">
+                                      <label for="appt-time">{{fld.label}} </label>
+                                      <input v-model="editedItem[fld.key]" id="appt-time" type="time" name="appt-time" value="13:30" :disabled="fld.disabled"
+                                              :rules="fld.required ? [rules.required]:[]" />
+
+                                      </div>
+                                       <div v-if="fld.type === 'link'">
+                                        <v-text-field
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            type="text"
+                                            :rules="fld.required ? [rules.required]:[]" variant="outlined"
+                                        ></v-text-field>
+                                    </div>
+                                    <div v-if="fld.type === 'file'">
+                                      <v-file-input
+                                      :label="fld.label"
+                                      :loading="uploading"
+                                     @update:modelValue="(o)=>{
+                                      uploadFile(o,fld)
+                                     }"
+                                      :rules="fld.required ? [rules.required]:[]" label="File input"  variant="outlined">
+
+                                    </v-file-input>
+                                    <v-chip
+                                      class="me-2"
+                                      color="primary"
+                                      size="small"
+                                      label
+                                    >
+                                      {{ editedItem[fld.key] }}
+                                    </v-chip>
+                                  </div>
+                                  <div v-if="fld.type === 'image'">
+                                    <v-file-input
+                                    :label="fld.label"
+                                    :loading="uploading"
+                                   @update:modelValue="(o)=>{
+                                    uploadFile(o,fld)
+                                   }"
+                                    :rules="fld.required ? [rules.required]:[]" label="File input"  variant="outlined">
+
+                                  </v-file-input>
+                                  <v-avatar :image="editedItem[fld.key]" size="41"></v-avatar>
+
+                                </div>
+                                    <div v-if="fld.type === 'number' &&fld.type === 'number_currency'">
+                                        <v-text-field
+                                            v-model="editedItem[fld.key]"
+                                            :label="fld.label"
+                                            type="number"
+                                            :min="fld.min"
+                                            :max="fld.max"
+                                            :step="fld.step"
+                                            :rules="fld.required ? [rules.required]:[]"
+                                            :disabled="fld.disabled||false"
+                                            @change="()=>{
+                                              calculate(editedItem,fld)
+                                            }" variant="outlined"
+                                        ></v-text-field>
+
+                                    </div>
+                                    <div v-if="fld.type === 'number' && fld.fireStoreType === 'integerValue'">
+                                      <v-text-field
+                                          v-model="editedItem[fld.key]"
+                                          :label="fld.label"
+                                          type="number"
+                                          :min="fld.min"
+                                          :max="fld.max"
+                                          :step="fld.step"
+                                          :rules="[rules.integer
+                                          ]"
+                                          :disabled="fld.disabled||false"
+                                          @change="()=>{
+                                            calculate(editedItem,fld)
+                                          }" variant="outlined"
+                                      ></v-text-field>
+
+                                  </div>
+                                  <div v-if="fld.type === 'number' && fld.fireStoreType === 'doubleValue'">
+                                    <v-text-field
+                                        v-model="editedItem[fld.key]"
+                                        :label="fld.label"
+                                        type="number"
+                                        :min="fld.min"
+                                        :max="fld.max"
+                                        :step="fld.step"
+                                        :rules="[rules.decimalUpto2
+                                        ]"
+                                        :disabled="fld.disabled||false"
+                                        @change="()=>{
+                                          calculate(editedItem,fld)
+                                        }" variant="outlined"
+                                    ></v-text-field>
+                                </div>
+                                  </v-col>
+                                  </v-row>
+                                </v-container>
+                              </v-card-text>
+
+                              <v-card-actions>
+                                <v-spacer></v-spacer>
+                                <v-btn
+                                  color="blue-darken-1"
+                                  variant="text"
+                                  @click="close"
+                                >
+                                  Cancel
+                                </v-btn>
+                                <!-- <v-btn
+                                color="blue-darken-1"
+                                variant="text"
+                                @click="modifyEmployee"
+                              >
+                                Modify Employee
+                              </v-btn> -->
+                                <v-btn
+                                  color="blue-darken-1"
+                                  variant="text"
+                                  @click="save"
+                                  :disabled="saving"
+                                >
+                                  Save
+                                </v-btn>
+                              </v-card-actions>
+                            </v-card>
+                          </v-dialog>
+                          <v-menu>
+                            <template v-slot:activator="{ props }">
+                              <v-btn
+                                icon
+                                v-bind="props"
+                              >
+                                <v-icon>mdi-settings</v-icon>
+                              </v-btn>
+                            </template>
+                            <v-list>
+                              <v-list-item
+                                v-for="option in options"
+                                :key="option"
+                                @click="handleOptionSelect(option)"
+                              >
+                                <v-list-item-title>{{ option }}</v-list-item-title>
+                              </v-list-item>
+                            </v-list>
+                          </v-menu>
+                          <v-dialog v-model="dialogDelete" max-width="500px">
+                            <v-card>
+                              <v-card-title class="text-h5">Are you sure you want to delete this Record?</v-card-title>
+                              <v-card-actions>
+                                <v-spacer></v-spacer>
+                                <v-btn color="blue-darken-1" variant="text" @click="closeDelete">Cancel</v-btn>
+                                <v-btn color="blue-darken-1" variant="text" @click="deleteItemConfirm">OK</v-btn>
+                                <v-spacer></v-spacer>
+                              </v-card-actions>
+                            </v-card>
+                          </v-dialog>
+                          <v-dialog v-model="confirmDialog" max-width="500px">
+                            <v-card>
+                              <v-card-title class="text-h5">Konfirmasi</v-card-title>
+                              <v-card-text>
+                                Apakah Anda yakin ingin melakukan backup dan menghapus data dari sheet?
+                              </v-card-text>
+                              <v-card-actions>
+                                <v-spacer></v-spacer>
+                                <v-btn color="blue-darken-1" variant="text" @click="confirmDialog = false">Batal</v-btn>
+                                <v-btn color="blue-darken-1" variant="text" @click="recreateTahunan">Ya, Lanjutkan</v-btn>
+                                <v-spacer></v-spacer>
+                              </v-card-actions>
+                            </v-card>
+                          </v-dialog>
+                          <v-dialog v-model="viewDialog" max-width="900px">
+                            <v-card>
+                              <v-card-title class="text-h5">Detail</v-card-title>
+                              <!-- <pre>
+                                {{JSON.stringify(editedItem, null, 2)}}
+                              </pre> -->
+                              <table style="width: 100%; border-collapse: collapse; margin: 20px; background-color: #f9f9f9;">
+
+                                <tr style="border-bottom: 1px solid #ddd;" v-for="fld in schema" :key="fld.key">
+                                  <td style="padding: 10px; border: 1px solid #ddd; text-align: left;width:40%;">
+                                    {{fld.label}}
+                                  </td>
+                                  <td style="padding: 10px; border: 1px solid #ddd; text-align: left; width:60%;">
+                                    <template v-if="fld.type === 'date'">
+                                      {{new Date(editedItem[fld.key]).toLocaleDateString(prefs.Locale) }}
+                                    </template>
+                                    <template v-else-if="fld.type === 'time'">
+                                      {{editedItem[fld.key]}}
+                                    </template>
+                                    <template  v-else-if="fld.type === 'link'">
+                                      <a :href="editedItem[fld.key]" target="_blank">Open</a>
+                                    </template>
+                                    <template  v-else-if="fld.type === 'file'">
+                                      <a :href="editedItem[fld.key]" target="_blank">Open</a>
+                                    </template>
+                                    <template  v-else-if="fld.type === 'image'">
+                                      <a :href="editedItem[fld.key]" target="_blank"> <v-avatar :image="editedItem[fld.key]" size="64"></v-avatar></a>
+                                    </template>
+                                    <template  v-else-if="fld.type === 'number_currency'">
+                                      {{editedItem[fld.key]?.toLocaleString(prefs.Locale, {
+                                        style: 'currency',
+                                        currency: prefs.Currency,
+                                    })}}
+                                    </template>
+                                    <template v-else>
+                                      {{editedItem[fld.key]}}
+                                    </template>
+                                  </td>
+                                </tr>
+                              </table>
+                            </v-card>
+                          </v-dialog>
+                        </v-toolbar>
+                      </template>
+
+                      <template v-slot:item.actions="{ item }">
+                        <div style="width:150px;">
+                          <v-icon
+                          size="small"
+                          class="me-2"
+                          @click="editItem(item)"
+                        >
+                          mdi-pencil
+                        </v-icon>
+                          <v-icon
+                          size="small"
+                          class="me-2"
+                          @click="startScraping(item)"
+                          color="blue"
+                        >
+                          mdi-sync
+                        </v-icon>
+                        <v-icon
+                          size="small"
+                          class="me-2"
+                          @click="sendInfoRecord(item)"
+                          color="green"
+                        >
+                          mdi-whatsapp
+                        </v-icon>
+                        <!-- <v-icon
+                          size="small"
+                          class="me-2"
+                          @click="viewItem(item)"
+                        >
+                          mdi-eye
+                        </v-icon> -->
+                        <v-icon
+                          color="deep-purple-accent-3"
+                          size="small"
+                          @click="generatePdf(item)"
+                          style="margin-right: 30px;"
+                        >
+                          mdi-file-download-outline
+                        </v-icon>
+                        <v-icon
+                          size="small"
+                          @click="deleteItem(item)"
+                          color="red"
+                        >
+                          mdi-delete
+                        </v-icon>
+                        </div>
+                      </template>
+                      <template v-slot:item.rating="{ item }">
+                        <v-rating
+                          :model-value="item.rating"
+                          color="blue-darken-2"
+                          density="compact"
+                          size="small"
+                          readonly
+                        ></v-rating>
+                      </template>
+
+                      <template v-for="header in headers.filter((header) => header.type==='number_currency')" v-slot:[`item.${header.key}`]="{ header, value }">
+                        {{value?.toLocaleString(prefs.Locale, {
+                          style: 'currency',
+                          currency: prefs.Currency,
+                      })}}
+                      </template>
+                      <template v-for="header in headers.filter((header) => header.type==='date')" v-slot:[`item.${header.key}`]="{ header, value }">
+                        {{ value !==''? new Date(value).toLocaleDateString() : value }}
+                      </template>
+                      <template v-for="header in headers.filter((header) => header.type==='link'||header.type==='file')" v-slot:[`item.${header.key}`]="{ header, value }">
+                        <div class="text-center">
+                          <!-- <a :href="value" target="_blank">{{schema.find(o=>o.key==header?.key)?.link_alias}}</a> -->
+                          <a :href="value" target="_blank">Open</a>
+                      </div>
+                      </template>
+                      <template v-for="header in headers.filter((header) => header.type==='image'||header.type==='image_url')" v-slot:[`item.${header.key}`]="{ header, value }">
+                        <div class="text-center">
+                          <!-- <a :href="value" target="_blank">{{schema.find(o=>o.key==header?.key)?.link_alias}}</a> -->
+                          <a :href="value" target="_blank"> <v-avatar :image="value" size="41"></v-avatar></a>
+
+                      </div>
+                      </template>
+                          <template v-slot:item.stock="{ item }">
+                          <div class="text-end">
+                              <v-chip
+                              :color="item.stock ? 'green' : 'red'"
+                              :text="item.stock ? 'In stock' : 'Out of stock'"
+                              class="text-uppercase"
+                              label
+                              size="small"
+                              ></v-chip>
+                          </div>
+                          </template>
+                          <template v-slot:item.approval="{ item }">
+                            <div class="text-center">
+                              <v-chip :color="item.approval === 'Yes' ? 'green' : 'red'" :text="item.approval === 'Yes' ? 'Yes' : 'No'" :prepend-icon="item.approval === 'Yes' ? 'mdi-checkbox-marked-circle' : 'mdi-close'" class="ma-2" size="small">
+                                {{ item.approval }}
+                              </v-chip>
+                            </div>
+                          </template>
+                          <template v-slot:item.status="{ item }">
+                            <div class="text-center">
+                            <v-chip class="ma-2" :color="item.status === 'Expired' ? 'red' : 'green'" :prepend-icon="item.status === 'Expired' ? 'mdi-alert' : 'mdi-checkbox-marked-circle'" size="small">
+                                {{ item.status }}
+                              </v-chip>
+                            </div>
+                          </template>
+                          <template v-slot:item.priority="{ item }">
+                            <div class="text-end">
+                              <v-chip
+                                :color="item.priority === 'Rusak Berat' ? 'red' : item.priority === 'Rusak Ringan' ? 'orange' : 'green'"
+                                :label="true"
+                                class="text-uppercase"
+                                size="small"
+                              >
+                                {{ item.priority }}
+                              </v-chip>
+                            </div>
+                          </template>
+
+
+                      <template v-slot:no-data>
+                        <v-btn
+                          color="primary"
+                          @click="searchLocal = ''"
+                          v-if="!showRefresh"
+                        >
+                          Reset
+                        </v-btn>
+                      </template>
+                    </v-data-table-virtual>
+                    <v-btn v-if="pageToken"
+                          color="primary"
+                          @click="loadMore"
+                          size="small"
+                          class="my-2 mx-2"
+                        >
+                          Load more ..
+                        </v-btn>
+                        <v-btn v-if="showRefresh"
+                        color="orange"
+                        @click="refresh(prefs)"
+                        size="small"
+                        class="my-2 mx-2"
+                      >
+                        Reset
+                      </v-btn>
+                    <v-snackbar
+                          v-model="snackbar.show"
+                          :color="snackbar.color"
+                          :timeout="snackbar.timeout"
+                          :vertical="snackbar.vertical"
+                          :right="snackbar.right"
+                          :bottom="snackbar.bottom"
+                          multi-line
+                           >
+                       <strong>{{snackbar.text}}</strong>
+
+                      <template v-slot:actions>
+                      <v-btn
+                          color="red"
+                          variant="text"
+                          @click="snackbar.show = false"
+                      >
+                          Close
+                      </v-btn>
+              </template>
+            </v-snackbar>
+              </v-app>
+    </script>
+  </body>
+</html>

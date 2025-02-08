@@ -1,0 +1,191 @@
+<v-app>
+  <v-card>
+    <v-layout>
+      <v-app-bar color="primary" prominent>
+        <v-app-bar-nav-icon
+          variant="text"
+          @click.stop="drawer = !drawer"
+        ></v-app-bar-nav-icon>
+        <v-btn
+          prepend-icon="mdi-home"
+          @click="goToSession('dashboard')"
+          v-if="currentUser"
+        >
+          <template v-slot:prepend>
+            <v-icon color="white"></v-icon>
+          </template>
+        </v-btn>
+        <v-toolbar-title>{{prefs?.AppName}}</v-toolbar-title>
+        <v-spacer></v-spacer>
+        <template v-if="$vuetify.display.mdAndUp">
+          <v-btn
+            prepend-icon="mdi-account-circle"
+            color="white"
+            @click="goToSession('signup')"
+            v-if="!currentUser"
+          >
+            <template v-slot:prepend>
+              <v-icon color="success"></v-icon>
+            </template>
+            Sign-up
+          </v-btn>
+          <v-btn
+            prepend-icon="mdi-account-circle"
+            color="white"
+            @click="goToSession('login')"
+            v-if="!currentUser"
+          >
+            <template v-slot:prepend>
+              <v-icon color="success"></v-icon>
+            </template>
+            Login
+          </v-btn>
+          <v-btn
+            prepend-icon="mdi-logout"
+            color="white"
+            variant="elevated"
+            @click="logout"
+            v-if="currentUser"
+          >
+            <template v-slot:prepend>
+              <v-icon color="red"></v-icon>
+            </template>
+            Logout
+          </v-btn>
+        </template>
+
+        <v-btn icon="mdi-dots-vertical" variant="text"></v-btn>
+        <v-menu>
+          <template v-slot:activator="{ props }">
+            <v-btn icon v-bind="props">
+              <v-icon>mdi-settings</v-icon>
+            </v-btn>
+          </template>
+          <v-list>
+            <v-list-item
+              v-for="option in options"
+              :key="option"
+              @click="handleOptionSelect(option)"
+            >
+              <v-list-item-title>{{ option }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+      </v-app-bar>
+
+      <v-navigation-drawer
+        v-model="drawer"
+        :location="$vuetify.display.mobile ? 'bottom' : undefined"
+        temporary
+      >
+        <v-list color="transparent" v-if="currentUser">
+          <v-list-item
+            prepend-icon="mdi-home"
+            title="Dashboard"
+            @click="goToSession('dashborad')"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-file-multiple"
+            title="Persuratan"
+            @click="goToSession('surat')"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-database"
+            title="Database"
+            @click="goToSession('database')"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-account-supervisor"
+            title="Narahubung"
+            @click="goToSession('narahubung')"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-send-circle"
+            title="Send Invitation"
+            @click="goToSession('invitation')"
+            v-if="currentUser.role=='owner'"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-account-multiple-plus"
+            title="Manage Invitations"
+            @click="goToSession('manageInvitations')"
+            v-if="currentUser.role=='owner'"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-account-group"
+            title="Manage Users"
+            @click="goToSession('manageUsers')"
+            v-if="currentUser.role=='owner'"
+          ></v-list-item>
+        </v-list>
+
+        <template v-slot:append>
+          <v-divider></v-divider>
+          <div class="pa-2" v-if="currentUser">
+            <b>{{users[currentUser.email].name}}</b>
+            <span>{{` (${currentUser.role})`}}</span>
+            <v-list-item
+              prepend-icon="mdi-account"
+              title="Edit Profile"
+              @click="goToSession('userInfo')"
+            ></v-list-item>
+          </div>
+          <div class="pa-2">
+            <v-btn
+              prepend-icon="mdi-logout"
+              color="yellow"
+              @click="logout"
+              v-if="currentUser"
+              block
+            >
+              <template v-slot:prepend>
+                <v-icon color="red"></v-icon>
+              </template>
+              Logout
+            </v-btn>
+            <v-btn
+              prepend-icon="mdi-account-circle"
+              color="yellow"
+              @click="goToSession('login')"
+              v-if="!currentUser"
+              block
+            >
+              <template v-slot:prepend>
+                <v-icon color="success"></v-icon>
+              </template>
+              Login
+            </v-btn>
+          </div>
+        </template>
+      </v-navigation-drawer>
+
+      <v-main style="height: 100vh">
+        <?!= include('html/login'); ?>
+        <?!= include('html/table'); ?>
+        <?!= include('html/management'); ?>
+        <?!= include('html/signup'); ?>
+        <?!= include('html/invitation'); ?>
+        <?!= include('html/change_password'); ?>
+        <?!= include('html/user_info'); ?>
+      </v-main>
+    </v-layout>
+  </v-card>
+  <v-snackbar
+    v-model="snackbar.show"
+    :color="snackbar.color"
+    :timeout="snackbar.timeout"
+    :vertical="snackbar.vertical"
+    :right="snackbar.right"
+    :bottom="snackbar.bottom"
+    multi-line
+    elevation="24"
+  >
+    <strong>{{snackbar.text}}</strong>
+
+    <template v-slot:actions>
+      <v-btn color="white" variant="text" @click="snackbar.show = false">
+        Close
+      </v-btn>
+    </template>
+  </v-snackbar>
+</v-app>
