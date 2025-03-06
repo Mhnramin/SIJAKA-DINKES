@@ -58,6 +58,11 @@
       templateUrl:
         "https://docs.google.com/document/d/17YyaXTovXjnUv4QoPSgi4WfhYmO484qMHowTqs_Cw0Y/edit",
       templateTawkto: "https://dashboard.tawk.to/",
+      sheetMapping: {
+        persuratan: "SuratKeterangan",
+        database: "Database",
+        narahubung: "Narahubung",
+      },
     }),
 
     computed: {
@@ -83,10 +88,14 @@
 
     created() {
       this.fetchSchema();
-      this.refresh();
+      this.initialize();
     },
 
     methods: {
+      // Add initialize method at the beginning of methods
+      initialize() {
+        this.refresh();
+      },
       handleOptionSelect(option) {
         if (option === "Recreate Tahunan") {
           this.confirmDialog = true;
@@ -195,25 +204,32 @@
       },
       loadDataTable(res) {
         let data = JSON.parse(res);
-        this.dataTable = data;
 
-        console.log("Parsed Data", data);
-        if (!this.schema) {
-          return;
+        // Filter data based on current session
+        if (this.currentSession && this.sheetMapping[this.currentSession]) {
+          const currentSheet = this.sheetMapping[this.currentSession];
+          console.log("Current Session:", this.currentSession);
+          console.log("Current Sheet:", currentSheet);
+          data = data.filter((item) => item.Sheet === currentSheet);
         }
-        const dateFlds = this.schema.filter((fld) => fld.type === "date");
-        data = data.map((item) => {
-          dateFlds.forEach((fld) => {
-            if (item[fld.key] != "") {
-              const dt = new Date(item[fld.key]);
-              item[fld.key] = `${dt.getFullYear()}-${(
-                "0" +
-                (dt.getMonth() + 1)
-              ).slice(-2)}-${("0" + dt.getDate()).slice(-2)}`;
-            }
+
+        // Process date fields
+        if (this.schema) {
+          const dateFlds = this.schema.filter((fld) => fld.type === "date");
+          data = data.map((item) => {
+            dateFlds.forEach((fld) => {
+              if (item[fld.key] != "") {
+                const dt = new Date(item[fld.key]);
+                item[fld.key] = `${dt.getFullYear()}-${(
+                  "0" +
+                  (dt.getMonth() + 1)
+                ).slice(-2)}-${("0" + dt.getDate()).slice(-2)}`;
+              }
+            });
+            return item;
           });
-          return item;
-        });
+        }
+
         this.dataTable = data;
         this.filterDataOnRoleBasis();
       },

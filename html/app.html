@@ -82,7 +82,7 @@
           <v-list-item
             prepend-icon="mdi-home"
             title="Dashboard"
-            @click="goToSession('dashborad')"
+            @click="goToSession('dashboard')"
           ></v-list-item>
           <v-list-item
             prepend-icon="mdi-file-multiple"
@@ -98,24 +98,25 @@
             prepend-icon="mdi-account-supervisor"
             title="Narahubung"
             @click="goToSession('narahubung')"
+            v-if="currentUser.role=='owner' || currentUser.role=='admin'"
           ></v-list-item>
           <v-list-item
             prepend-icon="mdi-send-circle"
             title="Send Invitation"
             @click="goToSession('invitation')"
-            v-if="currentUser.role=='owner'"
+            v-if="currentUser.role=='owner' || currentUser.role=='admin'"
           ></v-list-item>
           <v-list-item
             prepend-icon="mdi-account-multiple-plus"
             title="Manage Invitations"
             @click="goToSession('manageInvitations')"
-            v-if="currentUser.role=='owner'"
+            v-if="currentUser.role=='owner' || currentUser.role=='admin'"
           ></v-list-item>
           <v-list-item
             prepend-icon="mdi-account-group"
             title="Manage Users"
             @click="goToSession('manageUsers')"
-            v-if="currentUser.role=='owner'"
+            v-if="currentUser.role=='owner' || currentUser.role=='admin'"
           ></v-list-item>
         </v-list>
 

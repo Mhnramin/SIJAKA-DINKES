@@ -68,71 +68,53 @@ function getFolderByName(name) {
 
 // This function is used to save the Schema and app settings to the script properties by reading from the App Settings sheet and Schema sheet
 const saveAppPrefs = () => {
+  const obj = {};
   const settingsSheet =
     SpreadsheetApp.getActiveSpreadsheet().getSheetByName("App Settings");
-
-  // Check if the sheet exists
-  if (!settingsSheet) {
-    throw new Error("Sheet 'App Settings' not found.");
-  }
-
   const appSettings = settingsSheet
     .getRange(1, 1, settingsSheet.getLastRow(), settingsSheet.getLastColumn())
     .getValues();
-
-  const appSettingsHeaders = appSettings.shift(); // Get headers
-  const apps = appSettings.map((row) => {
-    const appConfig = row.reduce((obj, value, index) => {
-      obj[appSettingsHeaders[index]] = value; // Map values to headers
+  const appSettingsHeaders = appSettings.shift();
+  const appSettingsJsonArray = appSettings.map((row) => {
+    return row.reduce((obj, value, index) => {
+      obj[appSettingsHeaders[index]] = value;
       return obj;
     }, {});
+  });
+  obj.appSettings = appSettingsJsonArray[0];
 
-    // Ensure required fields are present
-    if (!appConfig.SchemaSheet || !appConfig.DataEntrySheet) {
-      throw new Error("SchemaSheet or DataEntrySheet cannot be empty.");
-    }
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(
+    obj.appSettings.SchemaSheet
+  );
 
-    const schemaSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(
-      appConfig.SchemaSheet
-    );
-    if (!schemaSheet) {
-      throw new Error(`Sheet "${appConfig.SchemaSheet}" not found.`);
-    }
-
-    const schemaData = schemaSheet.getDataRange().getValues();
-    const schemaHeaders = schemaData.shift();
-
-    appConfig.schema = schemaData.map((schemaRow) =>
-      schemaHeaders.reduce((sObj, sValue, sIndex) => {
-        sObj[sValue] = schemaRow[sIndex];
-        return sObj;
-      }, {})
-    );
-
-    return {
-      appSettings: appConfig,
-      schema: appConfig.schema,
-    };
+  const data = sheet
+    .getRange(1, 1, sheet.getLastRow(), sheet.getLastColumn())
+    .getValues();
+  const headers = data.shift();
+  const jsonArray = data.map((row) => {
+    return row.reduce((obj, value, index) => {
+      obj[headers[index]] = value;
+      return obj;
+    }, {});
   });
 
-  // Log the apps for debugging
-  console.log("Apps:", apps);
+  //
 
+  obj.schema = jsonArray;
+
+  // save to script properties
   PropertiesService.getScriptProperties().setProperty(
-    "Apps",
-    JSON.stringify(apps)
+    "appPrefs",
+    JSON.stringify(obj)
   );
-  return apps;
+  return jsonArray;
 };
 
-// Modified to return multiple apps
+// This function is used to get the appPrefs from the script properties
 function getAppPrefs() {
-  const apps = PropertiesService.getScriptProperties().getProperty("Apps");
-
-  // Log the retrieved apps for debugging
-  console.log("Retrieved Apps:", apps);
-
-  return apps ? JSON.parse(apps) : [];
+  const appPrefs =
+    PropertiesService.getScriptProperties().getProperty("appPrefs");
+  return JSON.parse(appPrefs);
 }
 
 // Updated to handle multiple rows
@@ -219,40 +201,42 @@ class ORM {
       .getRange(1, 1, this.sheet.getLastRow(), this.sheet.getLastColumn())
       .getValues();
     const headers = values[0]; // Ambil header (baris pertama)
-  
+
     // Cari index baris berdasarkan ID
     const rowIndex = values.findIndex((row) => row[0] == data[this.ID_COL]);
     if (rowIndex === -1) return false; // ID tidak ditemukan
-  
+
     // Ambil baris yang sudah ada
     const existingRow = this.sheet
       .getRange(rowIndex + 1, 1, 1, this.sheet.getLastColumn())
       .getValues()[0];
-  
+
     // Tentukan batasan kolom berdasarkan nama sheet
     const sheetName = this.sheet.getName();
     let maxColumnIndex = this.sheet.getLastColumn(); // Default: semua kolom
-  
+
     if (sheetName === "Database") {
       maxColumnIndex = 10; // Kolom A sampai J (indeks 0-9)
     } else if (sheetName === "SuratKeterangan") {
       maxColumnIndex = 5; // Kolom A sampai E (indeks 0-4)
     }
-  
+
     // Update hanya kolom yang diizinkan dan bukan formula
     this.schema.forEach(({ key, type }) => {
       const columnIndex = headers.indexOf(key);
       if (columnIndex !== -1 && columnIndex < maxColumnIndex) {
         existingRow[columnIndex] = data[key];
         if (type !== "formula") {
-          this.sheet.getRange(rowIndex + 1, columnIndex + 1).setValue(data[key]);
+          this.sheet
+            .getRange(rowIndex + 1, columnIndex + 1)
+            .setValue(data[key]);
         }
       }
     });
-  
+
     return true;
   }
-  
+
   // Delete a record by ID
   deleteById(record) {
     const id = record[this.ID_COL];
@@ -589,4 +573,10 @@ Terima kasih atas perhatian Anda.`;
 // function testStartScraping() {
 //     const testId = 515; // Replace with a valid ID for testing
 //     startScraping(testId);
+// }
+
+// function debugAppPrefs() {
+//   const apps = getAppPrefs();
+//   console.log(apps);
+//   return apps;
 // }
